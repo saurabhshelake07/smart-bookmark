@@ -21,10 +21,12 @@ export default function Home() {
       (_event, session) => setUser(session?.user ?? null)
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  // Fetch bookmarks for the current user
+  // Fetch bookmarks
   const fetchBookmarks = async () => {
     if (!user) return;
 
@@ -37,14 +39,14 @@ export default function Home() {
     setBookmarks(data || []);
   };
 
-  // Realtime subscription for bookmarks (fixed async issue)
+  // Subscribe to realtime changes
   useEffect(() => {
     if (!user) return;
 
-    // initial fetch
-    (async () => {
+    const fetchInitial = async () => {
       await fetchBookmarks();
-    })();
+    };
+    fetchInitial();
 
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
@@ -56,12 +58,7 @@ export default function Home() {
           table: "bookmarks",
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          // wrap async call in IIFE
-          (async () => {
-            await fetchBookmarks();
-          })();
-        }
+        async () => await fetchBookmarks()
       )
       .subscribe();
 
@@ -70,7 +67,7 @@ export default function Home() {
     };
   }, [user]);
 
-  // Add a new bookmark
+  // Add bookmark
   const addBookmark = async () => {
     if (!title || !url) {
       alert("Please enter both title and URL");
@@ -109,7 +106,7 @@ export default function Home() {
     setUser(null);
   };
 
-  // Show login if not logged in
+  // If not logged in
   if (!user) {
     return (
       <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
