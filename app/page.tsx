@@ -9,16 +9,22 @@ export default function Home() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
 
+  // Get current user on page load
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
 
+    // Listen for auth state changes (logout in another tab)
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => setUser(session?.user ?? null)
     );
 
-    return () => listener.subscription.unsubscribe();
+    // Cleanup function
+    return () => {
+      listener.subscription.unsubscribe(); // must be inside a function
+    };
   }, []);
 
+  // Fetch bookmarks for the current user
   const fetchBookmarks = async () => {
     if (!user) return;
 
@@ -31,10 +37,11 @@ export default function Home() {
     setBookmarks(data || []);
   };
 
+  // Realtime subscription for current user's bookmarks
   useEffect(() => {
     if (!user) return;
 
-    fetchBookmarks();
+    fetchBookmarks(); // initial fetch
 
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
@@ -50,44 +57,58 @@ export default function Home() {
       )
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // Cleanup subscription
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
+  // Add a new bookmark
   const addBookmark = async () => {
-    if (!title || !url) return alert("Please enter both title and URL");
+    if (!title || !url) {
+      alert("Please enter both title and URL");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("bookmarks")
       .insert([{ title, url, user_id: user.id }])
       .select();
 
-    if (error) return console.error(error.message);
+    if (error) {
+      console.error(error.message);
+      return;
+    }
 
-    setBookmarks([data[0], ...bookmarks]);
+    setBookmarks([data![0], ...bookmarks]); // add to state
     setTitle("");
     setUrl("");
   };
 
+  // Delete a bookmark
   const deleteBookmark = async (id: string) => {
     await supabase.from("bookmarks").delete().eq("id", id);
     setBookmarks(bookmarks.filter((b) => b.id !== id));
   };
 
+  // Google login
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({ provider: "google" });
   };
 
+  // Logout
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
+  // Show login if not logged in
   if (!user) {
     return (
-      <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
+      <div className="min-h-screen flex items-center justify-center bg-lightGray">
         <button
           onClick={signInWithGoogle}
-          className="btn btn-primary btn-lg shadow"
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-2xl shadow-lg transition transform hover:scale-105"
         >
           Sign in with Google
         </button>
@@ -95,71 +116,73 @@ export default function Home() {
     );
   }
 
+  // Main app UI
   return (
-    <div className="container py-5">
-      <div className="card shadow-lg rounded-4 p-4">
+    <div className="min-h-screen bg-lightGray py-12 px-4">
+      <div className="max-w-2xl mx-auto bg-white shadow-2xl rounded-3xl p-8">
+
         {/* Header */}
-        <div className="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+        <div className="flex justify-between items-center border-b pb-4 mb-6">
           <div>
-            <h1 className="h3 fw-bold">Smart Bookmark App</h1>
-            <p className="text-muted mb-0">
-              Logged in as: <span className="fw-medium">{user.email}</span>
+            <h1 className="text-3xl font-bold text-gray-800">Smart Bookmark App</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Logged in as: <span className="font-medium">{user.email}</span>
             </p>
           </div>
-          <button className="btn btn-danger" onClick={signOut}>
+
+          <button
+            onClick={signOut}
+            className="bg-red-500 hover:bg-red-600 text-white px-5 py-2 rounded-lg font-medium shadow-md transition transform hover:scale-105"
+          >
             Logout
           </button>
         </div>
 
-        {/* Add Bookmark */}
-        <div className="mb-4">
+        {/* Add Bookmark Section */}
+        <div className="space-y-4 mb-8">
           <input
             type="text"
             placeholder="Bookmark Title"
-            className="form-control mb-2"
+            className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <input
             type="text"
             placeholder="Bookmark URL"
-            className="form-control mb-2"
+            className="w-full border border-gray-300 p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
-          <button className="btn btn-success w-100" onClick={addBookmark}>
+          <button
+            onClick={addBookmark}
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold shadow-md transition transform hover:scale-105"
+          >
             Add Bookmark
           </button>
         </div>
 
         {/* Bookmark List */}
-        {bookmarks.length === 0 ? (
-          <p className="text-center text-muted">No bookmarks yet</p>
-        ) : (
-          <ul className="list-group">
-            {bookmarks.map((bookmark) => (
-              <li
+        <div className="space-y-4">
+          {bookmarks.length === 0 ? (
+            <p className="text-gray-400 text-center py-4">No bookmarks yet</p>
+          ) : (
+            bookmarks.map((bookmark) => (
+              <div
                 key={bookmark.id}
-                className="list-group-item d-flex justify-content-between align-items-center"
+                className="flex justify-between items-center border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition transform hover:scale-[1.01]"
               >
-                <div className="text-truncate" style={{ maxWidth: "80%" }}>
-                  <strong>{bookmark.title}</strong>
-                  <br />
-                  <a href={bookmark.url} target="_blank" className="text-primary">
+                <div className="flex flex-col overflow-hidden">
+                  <p className="font-semibold text-lg truncate">{bookmark.title}</p>
+                  <a
+                    href={bookmark.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 text-sm hover:underline truncate"
+                  >
                     {bookmark.url}
                   </a>
                 </div>
                 <button
-                  className="btn btn-outline-danger btn-sm"
                   onClick={() => deleteBookmark(bookmark.id)}
-                >
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
+                  className="text-red-500 hover:text-red-700 font-med
