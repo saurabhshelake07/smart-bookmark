@@ -1,9 +1,10 @@
 import { NextConfig } from "next";
+import { supabase } from "@/lib/supabase";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ["@supabase/supabase-js"],
+    serverExternalPackages: ["@supabase/supabase-js"], // use this instead
   },
 };
 
