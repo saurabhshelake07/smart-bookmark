@@ -21,7 +21,9 @@ export default function Home() {
       (_event, session) => setUser(session?.user ?? null)
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener.subscription.unsubscribe(); // cleanup
+    };
   }, []);
 
   // Fetch bookmarks
@@ -41,7 +43,10 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
 
-    fetchBookmarks();
+    const fetchAsync = async () => {
+      await fetchBookmarks();
+    };
+    fetchAsync();
 
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
@@ -58,7 +63,7 @@ export default function Home() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel); // cleanup
     };
   }, [user]);
 
@@ -101,9 +106,10 @@ export default function Home() {
     setUser(null);
   };
 
+  // Show login
   if (!user) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+      <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
         <button
           onClick={signInWithGoogle}
           className="btn btn-primary btn-lg shadow"
@@ -114,6 +120,7 @@ export default function Home() {
     );
   }
 
+  // Main UI
   return (
     <div className="container py-5">
       <div className="card shadow-lg rounded-4 p-4">
@@ -122,10 +129,13 @@ export default function Home() {
           <div>
             <h1 className="h3">Smart Bookmark App</h1>
             <p className="text-muted mb-0">
-              Logged in as: <strong>{user.email}</strong>
+              Logged in as: <span className="fw-medium">{user.email}</span>
             </p>
           </div>
-          <button onClick={signOut} className="btn btn-danger">
+          <button
+            onClick={signOut}
+            className="btn btn-danger btn-sm"
+          >
             Logout
           </button>
         </div>
@@ -146,34 +156,37 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
-          <button onClick={addBookmark} className="btn btn-success w-100">
+          <button
+            onClick={addBookmark}
+            className="btn btn-success w-100"
+          >
             Add Bookmark
           </button>
         </div>
 
         {/* Bookmark List */}
         {bookmarks.length === 0 ? (
-          <p className="text-center text-muted py-3">No bookmarks yet</p>
+          <p className="text-center text-muted">No bookmarks yet</p>
         ) : (
           bookmarks.map((bookmark) => (
             <div
               key={bookmark.id}
-              className="d-flex justify-content-between align-items-center mb-2 p-3 border rounded-3 shadow-sm"
+              className="d-flex justify-content-between align-items-center border rounded-3 p-3 mb-2 shadow-sm"
             >
-              <div>
+              <div className="text-truncate">
                 <p className="mb-1 fw-semibold">{bookmark.title}</p>
                 <a
                   href={bookmark.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary"
+                  className="text-primary text-truncate"
                 >
                   {bookmark.url}
                 </a>
               </div>
               <button
                 onClick={() => deleteBookmark(bookmark.id)}
-                className="btn btn-outline-danger btn-sm"
+                className="btn btn-outline-danger btn-sm ms-2"
               >
                 Delete
               </button>
