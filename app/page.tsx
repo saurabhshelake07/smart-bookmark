@@ -9,7 +9,7 @@ export default function Home() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
 
-  // Get current user on page load & listen for auth changes
+  // Get current user & listen for auth changes
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -21,12 +21,13 @@ export default function Home() {
       (_event, session) => setUser(session?.user ?? null)
     );
 
+    // Cleanup is synchronous
     return () => {
-      listener.subscription.unsubscribe(); // cleanup
+      listener.subscription.unsubscribe();
     };
   }, []);
 
-  // Fetch bookmarks
+  // Fetch bookmarks for the current user
   const fetchBookmarks = async () => {
     if (!user) return;
 
@@ -39,10 +40,11 @@ export default function Home() {
     setBookmarks(data || []);
   };
 
-  // Realtime subscription
+  // Realtime subscription for bookmarks
   useEffect(() => {
     if (!user) return;
 
+    // Async function called inside useEffect (not returned)
     const fetchAsync = async () => {
       await fetchBookmarks();
     };
@@ -62,8 +64,9 @@ export default function Home() {
       )
       .subscribe();
 
+    // Cleanup is synchronous
     return () => {
-      supabase.removeChannel(channel); // cleanup
+      supabase.removeChannel(channel);
     };
   }, [user]);
 
@@ -106,7 +109,7 @@ export default function Home() {
     setUser(null);
   };
 
-  // Show login
+  // Show login if not logged in
   if (!user) {
     return (
       <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
@@ -132,10 +135,7 @@ export default function Home() {
               Logged in as: <span className="fw-medium">{user.email}</span>
             </p>
           </div>
-          <button
-            onClick={signOut}
-            className="btn btn-danger btn-sm"
-          >
+          <button onClick={signOut} className="btn btn-danger btn-sm">
             Logout
           </button>
         </div>
@@ -156,10 +156,7 @@ export default function Home() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />
-          <button
-            onClick={addBookmark}
-            className="btn btn-success w-100"
-          >
+          <button onClick={addBookmark} className="btn btn-success w-100">
             Add Bookmark
           </button>
         </div>
