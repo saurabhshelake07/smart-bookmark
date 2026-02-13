@@ -3,32 +3,38 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  user_id: string;
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
-  const [bookmarks, setBookmarks] = useState<any[]>([]);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
 
-  // Get user and listen for auth changes
+  // Get current user & listen for auth changes
   useEffect(() => {
-    async function initUser() {
+    const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
-    }
-    initUser();
+    };
+    getUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_, session) => setUser(session?.user ?? null)
+      (_event, session) => setUser(session?.user ?? null)
     );
 
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Fetch bookmarks function
+  // Fetch bookmarks for the current user
   const fetchBookmarks = async () => {
     if (!user) return;
+
     const { data } = await supabase
       .from("bookmarks")
       .select("*")
@@ -38,14 +44,15 @@ export default function Home() {
     setBookmarks(data || []);
   };
 
-  // Realtime subscription
+  // Realtime subscription for bookmarks
   useEffect(() => {
     if (!user) return;
 
-    // call async inside effect
-    (async () => {
+    // initial fetch
+    const fetchData = async () => {
       await fetchBookmarks();
-    })();
+    };
+    fetchData();
 
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
@@ -63,13 +70,13 @@ export default function Home() {
       )
       .subscribe();
 
-    // cleanup must be synchronous!
+    // cleanup
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
 
-  // Add bookmark
+  // Add a new bookmark
   const addBookmark = async () => {
     if (!title || !url) {
       alert("Please enter both title and URL");
@@ -97,20 +104,24 @@ export default function Home() {
     setBookmarks(bookmarks.filter((b) => b.id !== id));
   };
 
-  // Login & Logout
-  const signInWithGoogle = async () =>
-    supabase.auth.signInWithOAuth({ provider: "google" });
+  // Google login
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({ provider: "google" });
+  };
+
+  // Logout
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
+  // Show login if not logged in
   if (!user) {
     return (
       <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
         <button
           onClick={signInWithGoogle}
-          className="btn btn-primary btn-lg"
+          className="btn btn-primary btn-lg shadow"
         >
           Sign in with Google
         </button>
@@ -118,54 +129,67 @@ export default function Home() {
     );
   }
 
+  // Main UI
   return (
     <div className="container py-5">
-      <div className="card shadow p-4">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h3>Smart Bookmark App</h3>
-          <button className="btn btn-danger btn-sm" onClick={signOut}>
+      <div className="card shadow-lg rounded-4 p-4">
+        {/* Header */}
+        <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+          <div>
+            <h1 className="h3">Smart Bookmark App</h1>
+            <p className="text-muted mb-0">
+              Logged in as: <span className="fw-medium">{user.email}</span>
+            </p>
+          </div>
+          <button onClick={signOut} className="btn btn-danger btn-sm">
             Logout
           </button>
         </div>
 
-        <input
-          type="text"
-          className="form-control mb-2"
-          placeholder="Bookmark Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        {/* Add Bookmark */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Bookmark Title"
+            className="form-control mb-2"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Bookmark URL"
+            className="form-control mb-2"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <button onClick={addBookmark} className="btn btn-success w-100">
+            Add Bookmark
+          </button>
+        </div>
 
-        <input
-          type="text"
-          className="form-control mb-2"
-          placeholder="Bookmark URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-
-        <button className="btn btn-success w-100" onClick={addBookmark}>
-          Add Bookmark
-        </button>
-
+        {/* Bookmark List */}
         {bookmarks.length === 0 ? (
-          <p className="text-center text-muted mt-4">No bookmarks yet</p>
+          <p className="text-center text-muted">No bookmarks yet</p>
         ) : (
-          bookmarks.map((bm) => (
+          bookmarks.map((bookmark) => (
             <div
-              key={bm.id}
-              className="d-flex justify-content-between align-items-center border rounded p-3 mt-3"
+              key={bookmark.id}
+              className="d-flex justify-content-between align-items-center border rounded-3 p-3 mb-2 shadow-sm"
             >
-              <div>
-                <strong>{bm.title}</strong>
-                <br />
-                <a href={bm.url} target="_blank" rel="noopener noreferrer">
-                  {bm.url}
+              <div className="text-truncate">
+                <p className="mb-1 fw-semibold">{bookmark.title}</p>
+                <a
+                  href={bookmark.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary text-truncate"
+                >
+                  {bookmark.url}
                 </a>
               </div>
               <button
-                className="btn btn-outline-danger btn-sm"
-                onClick={() => deleteBookmark(bm.id)}
+                onClick={() => deleteBookmark(bookmark.id)}
+                className="btn btn-outline-danger btn-sm ms-2"
               >
                 Delete
               </button>
