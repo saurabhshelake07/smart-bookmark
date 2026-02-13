@@ -21,10 +21,7 @@ export default function Home() {
       (_event, session) => setUser(session?.user ?? null)
     );
 
-    // Cleanup is synchronous
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   // Fetch bookmarks for the current user
@@ -40,15 +37,14 @@ export default function Home() {
     setBookmarks(data || []);
   };
 
-  // Realtime subscription for bookmarks
+  // Realtime subscription for bookmarks (fixed async issue)
   useEffect(() => {
     if (!user) return;
 
-    // Async function called inside useEffect (not returned)
-    const fetchAsync = async () => {
+    // initial fetch
+    (async () => {
       await fetchBookmarks();
-    };
-    fetchAsync();
+    })();
 
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
@@ -60,17 +56,21 @@ export default function Home() {
           table: "bookmarks",
           filter: `user_id=eq.${user.id}`,
         },
-        () => fetchBookmarks()
+        () => {
+          // wrap async call in IIFE
+          (async () => {
+            await fetchBookmarks();
+          })();
+        }
       )
       .subscribe();
 
-    // Cleanup is synchronous
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
 
-  // Add bookmark
+  // Add a new bookmark
   const addBookmark = async () => {
     if (!title || !url) {
       alert("Please enter both title and URL");
