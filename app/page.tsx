@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase"; // will only run on client
-
+import { supabase } from "@/lib/supabase";
 
 interface Bookmark {
   id: string;
@@ -16,17 +15,27 @@ export default function Home() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(true); // new loading state
 
   // Get current user & listen for auth changes
   useEffect(() => {
     const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+      try {
+        const { data } = await supabase.auth.getUser();
+        setUser(data.user);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     getUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => setUser(session?.user ?? null)
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     );
 
     return () => listener.subscription.unsubscribe();
@@ -36,13 +45,17 @@ export default function Home() {
   const fetchBookmarks = async () => {
     if (!user) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("bookmarks")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    setBookmarks(data || []);
+    if (error) {
+      console.error("Error fetching bookmarks:", error);
+    } else {
+      setBookmarks(data || []);
+    }
   };
 
   // Realtime subscription for bookmarks
@@ -90,7 +103,7 @@ export default function Home() {
       .select();
 
     if (error) {
-      console.error(error.message);
+      console.error("Error adding bookmark:", error.message);
       return;
     }
 
@@ -101,7 +114,11 @@ export default function Home() {
 
   // Delete bookmark
   const deleteBookmark = async (id: string) => {
-    await supabase.from("bookmarks").delete().eq("id", id);
+    const { error } = await supabase.from("bookmarks").delete().eq("id", id);
+    if (error) {
+      console.error("Error deleting bookmark:", error.message);
+      return;
+    }
     setBookmarks(bookmarks.filter((b) => b.id !== id));
   };
 
@@ -115,6 +132,15 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null);
   };
+
+  // Show loading screen while fetching user
+  if (loading) {
+    return (
+      <div className="d-flex vh-100 justify-content-center align-items-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   // Show login if not logged in
   if (!user) {
