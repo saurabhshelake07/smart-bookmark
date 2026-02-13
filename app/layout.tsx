@@ -1,4 +1,5 @@
 // app/layout.tsx
+import "bootstrap/dist/css/bootstrap.min.css";
 import React from "react";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -6,11 +7,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <title>Smart Bookmark App</title>
-        {/* Bootstrap CSS CDN */}
-        <link
-          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
-          rel="stylesheet"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>{children}</body>
     </html>
