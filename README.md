@@ -6,7 +6,7 @@ A production-ready bookmark manager built with **Next.js (App Router)** and **Su
 
 ## 🚀 Live Application
 
-🔗 https://your-vercel-domain.vercel.app  
+🔗 https://smart-bookmarklive2.vercel.app/
 
 ---
 
