@@ -66,6 +66,6 @@ A production-ready bookmark manager built with **Next.js (App Router)** and **Su
 Clone the repository:
 
 ```bash
-git clone https://github.com/your-username/your-repo.git
-cd your-repo
+git clone https://github.com/saurabhshelake07/smart-bookmark.git
+cd smart-bookmark
 npm install
