@@ -15,59 +15,50 @@ export default function Home() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(true); // new loading state
+  const [loading, setLoading] = useState(true);
 
-  // Get current user & listen for auth changes
+  // Get current user & listen for auth changes (client-side only)
   useEffect(() => {
-    const getUser = async () => {
+    const initUser = async () => {
       try {
         const { data } = await supabase.auth.getUser();
         setUser(data.user);
-      } catch (error) {
-        console.error("Error fetching user:", error);
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
-    getUser();
+
+    initUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
-        setLoading(false);
       }
     );
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Fetch bookmarks for the current user
-  const fetchBookmarks = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("bookmarks")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching bookmarks:", error);
-    } else {
-      setBookmarks(data || []);
-    }
-  };
-
-  // Realtime subscription for bookmarks
+  // Fetch bookmarks (only after user is set)
   useEffect(() => {
     if (!user) return;
 
-    // initial fetch
-    const fetchData = async () => {
-      await fetchBookmarks();
-    };
-    fetchData();
+    const fetchBookmarks = async () => {
+      const { data, error } = await supabase
+        .from("bookmarks")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
+      if (error) console.error(error);
+      else setBookmarks(data || []);
+    };
+
+    fetchBookmarks();
+
+    // Realtime subscription
     const channel = supabase
       .channel(`bookmarks-${user.id}`)
       .on(
@@ -78,19 +69,16 @@ export default function Home() {
           table: "bookmarks",
           filter: `user_id=eq.${user.id}`,
         },
-        async () => {
-          await fetchBookmarks();
-        }
+        () => fetchBookmarks()
       )
       .subscribe();
 
-    // cleanup
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
 
-  // Add a new bookmark
+  // Add bookmark
   const addBookmark = async () => {
     if (!title || !url) {
       alert("Please enter both title and URL");
@@ -102,10 +90,7 @@ export default function Home() {
       .insert([{ title, url, user_id: user.id }])
       .select();
 
-    if (error) {
-      console.error("Error adding bookmark:", error.message);
-      return;
-    }
+    if (error) return console.error(error.message);
 
     setBookmarks([data![0], ...bookmarks]);
     setTitle("");
@@ -115,25 +100,20 @@ export default function Home() {
   // Delete bookmark
   const deleteBookmark = async (id: string) => {
     const { error } = await supabase.from("bookmarks").delete().eq("id", id);
-    if (error) {
-      console.error("Error deleting bookmark:", error.message);
-      return;
-    }
+    if (error) return console.error(error.message);
     setBookmarks(bookmarks.filter((b) => b.id !== id));
   };
 
-  // Google login
+  // Login & Logout
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({ provider: "google" });
   };
-
-  // Logout
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
-  // Show loading screen while fetching user
+  // Loading state
   if (loading) {
     return (
       <div className="d-flex vh-100 justify-content-center align-items-center">
@@ -142,13 +122,13 @@ export default function Home() {
     );
   }
 
-  // Show login if not logged in
+  // Show login if not signed in
   if (!user) {
     return (
-      <div className="d-flex vh-100 justify-content-center align-items-center bg-light">
+      <div className="d-flex vh-100 justify-content-center align-items-center">
         <button
           onClick={signInWithGoogle}
-          className="btn btn-primary btn-lg shadow"
+          className="btn btn-primary btn-lg"
         >
           Sign in with Google
         </button>
@@ -156,17 +136,14 @@ export default function Home() {
     );
   }
 
-  // Main UI
+  // Dashboard
   return (
     <div className="container py-5">
-      <div className="card shadow-lg rounded-4 p-4">
-        {/* Header */}
-        <div className="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+      <div className="card shadow-lg p-4">
+        <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
             <h1 className="h3">Smart Bookmark App</h1>
-            <p className="text-muted mb-0">
-              Logged in as: <span className="fw-medium">{user.email}</span>
-            </p>
+            <p>Logged in as: {user.email}</p>
           </div>
           <button onClick={signOut} className="btn btn-danger btn-sm">
             Logout
@@ -176,18 +153,16 @@ export default function Home() {
         {/* Add Bookmark */}
         <div className="mb-4">
           <input
-            type="text"
-            placeholder="Bookmark Title"
-            className="form-control mb-2"
+            placeholder="Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            className="form-control mb-2"
           />
           <input
-            type="text"
-            placeholder="Bookmark URL"
-            className="form-control mb-2"
+            placeholder="URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            className="form-control mb-2"
           />
           <button onClick={addBookmark} className="btn btn-success w-100">
             Add Bookmark
@@ -196,27 +171,22 @@ export default function Home() {
 
         {/* Bookmark List */}
         {bookmarks.length === 0 ? (
-          <p className="text-center text-muted">No bookmarks yet</p>
+          <p>No bookmarks yet</p>
         ) : (
-          bookmarks.map((bookmark) => (
+          bookmarks.map((b) => (
             <div
-              key={bookmark.id}
-              className="d-flex justify-content-between align-items-center border rounded-3 p-3 mb-2 shadow-sm"
+              key={b.id}
+              className="d-flex justify-content-between border p-3 mb-2"
             >
-              <div className="text-truncate">
-                <p className="mb-1 fw-semibold">{bookmark.title}</p>
-                <a
-                  href={bookmark.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary text-truncate"
-                >
-                  {bookmark.url}
+              <div>
+                <p>{b.title}</p>
+                <a href={b.url} target="_blank" rel="noopener noreferrer">
+                  {b.url}
                 </a>
               </div>
               <button
-                onClick={() => deleteBookmark(bookmark.id)}
-                className="btn btn-outline-danger btn-sm ms-2"
+                onClick={() => deleteBookmark(b.id)}
+                className="btn btn-outline-danger btn-sm"
               >
                 Delete
               </button>
